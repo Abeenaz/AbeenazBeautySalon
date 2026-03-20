@@ -901,22 +901,36 @@ function updateBillPreview() {
   const monthlySpend = (c.monthlySpend || {})[thisMonth] || 0;
   const perk = getPerk(monthlySpend);
   
-  let discount = perk ? perk.discount : 0;
-  if (c.referralDiscount) discount = Math.max(discount, 5);
-  
-  // Check for active special discount
+  // STACK discounts instead of taking max
+  let discount = 0;
+  let perkDiscount = 0;
+  let referralDiscountAmount = 0;
   let specialDiscount = 0;
   let specialDiscountName = '';
   let hasSpecialDiscount = false;
+  
+  if (perk) {
+    perkDiscount = perk.discount;
+    discount += perkDiscount;
+  }
+  if (c.referralDiscount) {
+    referralDiscountAmount = 5;
+    discount += referralDiscountAmount;
+  }
+  
+  // Check for active special discount
   if (DB.activeDiscount && serviceId) {
     const category = DB.services.find(cat => cat.items.some(item => item.id === serviceId));
     if (category && DB.activeDiscount.categories.includes(category.id)) {
       specialDiscount = DB.activeDiscount.percent;
       specialDiscountName = DB.activeDiscount.purpose;
       hasSpecialDiscount = true;
-      discount = Math.max(discount, specialDiscount);
+      discount += specialDiscount;
     }
   }
+  
+  // Cap total discount at 50%
+  discount = Math.min(discount, 50);
   
   const finalAmount = Math.round(amount * (1 - discount / 100));
   const points = calcPoints(amount);
@@ -929,7 +943,7 @@ function updateBillPreview() {
   preview.innerHTML = `
     <h4>Bill Summary</h4>
     <div class="bill-row"><span>Original Amount</span><span>Rs.${fmt(amount)}</span></div>
-    ${perk ? `<div class="bill-row"><span>Perk Discount (${perk.name})</span><span class="text-gold">${perk.discount}% off</span></div>` : ''}
+    ${perk ? `<div class="bill-row"><span>Perk Discount (${perk.name})</span><span class="text-gold">${perkDiscount}% off</span></div>` : ''}
     ${c.referralDiscount ? '<div class="bill-row"><span>Referral Discount</span><span class="text-gold">5% off</span></div>' : ''}
     ${hasSpecialDiscount ? `<div class="bill-row"><span>🎉 ${specialDiscountName} Special</span><span class="text-gold">${specialDiscount}% off</span></div>` : ''}
     <div class="bill-row"><span>Total Discount</span><span class="text-gold">${discount}% off</span></div>
@@ -955,24 +969,36 @@ function generateBill() {
   const monthlySpend = (c.monthlySpend || {})[thisMonth] || 0;
   const perk = getPerk(monthlySpend);
   
-  let discount = perk ? perk.discount : 0;
+  // STACK discounts instead of taking max
+  let discount = 0;
+  let perkDiscount = 0;
   let usedReferral = false;
+  let referralDiscountAmount = 0;
+  let specialDiscount = 0;
+  let specialDiscountName = '';
+  
+  if (perk) {
+    perkDiscount = perk.discount;
+    discount += perkDiscount;
+  }
   if (c.referralDiscount) {
-    discount = Math.max(discount, 5);
+    referralDiscountAmount = 5;
+    discount += referralDiscountAmount;
     usedReferral = true;
   }
   
   // Check for active special discount on this category
-  let specialDiscount = 0;
-  let specialDiscountName = '';
   if (DB.activeDiscount && serviceId) {
     const category = DB.services.find(cat => cat.items.some(item => item.id === serviceId));
     if (category && DB.activeDiscount.categories.includes(category.id)) {
       specialDiscount = DB.activeDiscount.percent;
       specialDiscountName = DB.activeDiscount.purpose;
-      discount = Math.max(discount, specialDiscount);
+      discount += specialDiscount;
     }
   }
+  
+  // Cap total discount at 50%
+  discount = Math.min(discount, 50);
   
   const finalAmount = Math.round(amount * (1 - discount / 100));
   const points = calcPoints(amount);
@@ -1011,10 +1037,10 @@ function generateBill() {
   // Build discount breakdown
   let discountBreakdown = '';
   if (perk) {
-    discountBreakdown += `• Perk (${perk.name}): ${perk.discount}% off\n`;
+    discountBreakdown += `• Perk (${perk.name}): ${perkDiscount}% off\n`;
   }
   if (usedReferral) {
-    discountBreakdown += `• Referral: 5% off\n`;
+    discountBreakdown += `• Referral: ${referralDiscountAmount}% off\n`;
   }
   if (specialDiscountName) {
     discountBreakdown += `• ${specialDiscountName} Special: ${specialDiscount}% off 🎉\n`;
