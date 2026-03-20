@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <!-- Custom Cursor -->
@@ -651,6 +655,8 @@
     </div>
   </div>
 
+  <!-- Firebase Config (must be before app.js) -->
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
