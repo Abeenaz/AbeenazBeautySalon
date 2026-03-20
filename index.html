@@ -315,6 +315,21 @@
 
         <!-- Services Tab -->
         <div id="tab-services" class="a-tab-content">
+          <!-- Discount Timer Banner -->
+          <div id="discount-banner" class="discount-banner hidden">
+            <div class="discount-banner-content">
+              <span class="discount-banner-icon">🎉</span>
+              <div class="discount-banner-text">
+                <strong id="discount-banner-title">Special Discount Active!</strong>
+                <span id="discount-banner-timer">Ends in: --</span>
+              </div>
+            </div>
+            <button class="btn-ghost btn-sm" onclick="goToDiscountManager()">Manage</button>
+          </div>
+
+          <!-- Discount Manager -->
+          <div id="discount-manager" class="discount-manager"></div>
+
           <div class="section-header">
             <h3>Services & Pricing</h3>
             <button class="btn-primary btn-sm" onclick="openAddServiceModal()">+ Add Service</button>
