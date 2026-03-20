@@ -23,6 +23,7 @@ function getDefaultData() {
       whatsapp: '3192641891',
       hours: 'Mon–Sat, 10am–8pm',
       estYear: '2023',
+      website: 'https://abeenaz.github.io/AbeenazBeautySalon/',
       aboutText: 'Abeenaz was born from a simple belief — every woman deserves to feel extraordinary. Founded in 2023, our parlour has grown into one of the most trusted beauty destinations in the city.\n\nOur team of expert stylists and beauty artists are trained in both classic techniques and modern trends, ensuring every visit is a transformative experience.',
       pointsRate: 1, // points per Rs.100
       heroTitle: 'Where Every Woman<br/><em>Deserves to Shine</em>',
@@ -88,6 +89,7 @@ function getDefaultData() {
       { id: 'l2', name: 'Rs.500 Discount Voucher', points: 300, desc: 'Off your next visit' },
       { id: 'l3', name: 'Free Manicure', points: 200, desc: 'Classic manicure on the house' }
     ],
+    activeDiscount: null, // { percent, categories: [], endDate, purpose }
     bills: []
   };
 }
@@ -150,6 +152,14 @@ function getPerkByName(name) {
 function calcPoints(amount) {
   const rate = DB.settings.pointsRate || 1;
   return Math.floor(amount / 100) * rate;
+}
+
+function getWebsiteLink() {
+  return DB.settings.website || 'https://abeenaz.github.io/AbeenazBeautySalon/';
+}
+
+function getMessageFooter() {
+  return `🌐 Visit our website: ${getWebsiteLink()}`;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -664,6 +674,7 @@ Earn ${DB.settings.pointsRate} point(s) for every Rs.100 spent! Redeem for free 
 📍 ${DB.settings.address}
 📞 +92 ${DB.settings.whatsapp}
 🕐 ${DB.settings.hours}
+🌐 Visit our website: https://abeenaz.github.io/AbeenazBeautySalon/
 
 We can't wait to pamper you! 💅✨`;
 
@@ -690,7 +701,8 @@ Keep sharing the love! 💛
 
 📍 ${DB.settings.address}
 📞 +92 ${DB.settings.whatsapp}
-🕐 ${DB.settings.hours}`;
+🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}`;
 
   openWhatsApp(phone, msg);
 }
@@ -794,6 +806,7 @@ function generateBill() {
   const amount = parseFloat(document.getElementById('bill-amount').value) || 0;
   const serviceSelect = document.getElementById('bill-service');
   const serviceName = serviceSelect.options[serviceSelect.selectedIndex]?.text?.split(' — ')[0] || 'Service';
+  const serviceId = serviceSelect.value;
 
   if (phone.length !== 10) { showToast('Enter valid phone', 'error'); return; }
   if (!DB.clients[phone]) { showToast('Client not found', 'error'); return; }
@@ -809,6 +822,18 @@ function generateBill() {
   if (c.referralDiscount) {
     discount = Math.max(discount, 5);
     usedReferral = true;
+  }
+  
+  // Check for active special discount on this category
+  let specialDiscount = 0;
+  let specialDiscountName = '';
+  if (DB.activeDiscount && serviceId) {
+    const category = DB.services.find(cat => cat.items.some(item => item.id === serviceId));
+    if (category && DB.activeDiscount.categories.includes(category.id)) {
+      specialDiscount = DB.activeDiscount.percent;
+      specialDiscountName = DB.activeDiscount.purpose;
+      discount = Math.max(discount, specialDiscount);
+    }
   }
   
   const finalAmount = Math.round(amount * (1 - discount / 100));
@@ -854,7 +879,7 @@ function generateBill() {
 
 📦 *Service:* ${serviceName}
 💰 *Original:* Rs.${fmt(amount)}
-🏷️ *Discount:* ${discount}%
+🏷️ *Discount:* ${discount}% off${specialDiscountName ? ` (${specialDiscountName} Special!)` : ''}
 💵 *Total Paid:* Rs.${fmt(finalAmount)}
 
 ━━━━━━━━━━━━━━━━━
@@ -886,7 +911,9 @@ function generateBill() {
   msg += `
 ━━━━━━━━━━━━━━━━━
 📍 ${DB.settings.address}
+📞 +92 ${DB.settings.whatsapp}
 🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}
 
 Thank you for choosing ${DB.settings.brand}! 💛`;
 
@@ -1016,6 +1043,7 @@ To unlock *${nextPerk?.name || 'your perks'}* (${nextPerk?.benefits || 'benefits
 📍 ${DB.settings.address}
 📞 +92 ${DB.settings.whatsapp}
 🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}
 
 Book your appointment now! 💛`;
 
@@ -1061,6 +1089,7 @@ ${DB.loyaltyShop.map(r => `• ${r.name}: ${r.points} pts`).join('\n')}
 📍 ${DB.settings.address}
 📞 +92 ${DB.settings.whatsapp}
 🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}
 
 Thank you for being part of our family! 💛`;
 
@@ -1071,31 +1100,47 @@ Thank you for being part of our family! 💛`;
    SERVICES TAB
 ══════════════════════════════════════════════════════ */
 function loadServicesAdmin() {
+  // Load discount manager first
+  loadDiscountManager();
+  
+  // Update discount banner
+  updateDiscountBanner();
+  
   const list = document.getElementById('services-list');
   if (!list) return;
 
-  list.innerHTML = DB.services.map((cat, ci) => `
-    <div class="service-category">
+  list.innerHTML = DB.services.map((cat, ci) => {
+    const hasDiscount = DB.activeDiscount && DB.activeDiscount.categories.includes(cat.id);
+    
+    return `
+    <div class="service-category ${hasDiscount ? 'has-discount' : ''}">
       <div class="category-header">
-        <h4>${cat.name}</h4>
+        <h4>${cat.name} ${hasDiscount ? `<span class="discount-badge">${DB.activeDiscount.percent}% OFF</span>` : ''}</h4>
         <button class="btn-icon" onclick="removeServiceCategory(${ci})">🗑️</button>
       </div>
       <div class="category-items">
-        ${cat.items.map((item, ii) => `
+        ${cat.items.map((item, ii) => {
+          const discountedPrice = getDiscountedPrice(item.price, cat.id);
+          return `
           <div class="service-item">
             <div class="service-info">
               <span class="service-dot"></span>
               <span>${item.name}</span>
             </div>
             <div style="display:flex;align-items:center;gap:0.5rem;">
-              <span class="service-price">Rs.${fmt(item.price)}</span>
+              ${discountedPrice ? `
+                <div class="service-price-discounted">
+                  <span class="price-original">Rs.${fmt(item.price)}</span>
+                  <span class="price-new">Rs.${fmt(discountedPrice)}</span>
+                </div>
+              ` : `<span class="service-price">Rs.${fmt(item.price)}</span>`}
               <button class="btn-icon" onclick="removeServiceItem(${ci}, ${ii})">✕</button>
             </div>
           </div>
-        `).join('')}
+        `}).join('')}
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   // Update category dropdown
   const catSelect = document.getElementById('add-service-category');
@@ -1103,6 +1148,26 @@ function loadServicesAdmin() {
     catSelect.innerHTML = '<option value="">-- Select Category --</option>' +
       DB.services.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   }
+}
+
+function updateDiscountBanner() {
+  const banner = document.getElementById('discount-banner');
+  const title = document.getElementById('discount-banner-title');
+  const timer = document.getElementById('discount-banner-timer');
+  
+  if (!banner) return;
+  
+  if (DB.activeDiscount && new Date(DB.activeDiscount.endDate) > new Date()) {
+    banner.classList.remove('hidden');
+    title.textContent = `${DB.activeDiscount.purpose}: ${DB.activeDiscount.percent}% OFF`;
+    timer.textContent = `Ends in: ${formatTimeRemaining(DB.activeDiscount.endDate)}`;
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function goToDiscountManager() {
+  document.getElementById('discount-manager').scrollIntoView({ behavior: 'smooth' });
 }
 
 function openAddServiceModal() {
@@ -1394,22 +1459,86 @@ function renderServiceGrid(catId) {
   const cat = DB.services.find(c => c.id === catId);
   const gridEl = document.getElementById('services-grid');
   if (!cat || !gridEl) return;
+  
+  const hasCategoryDiscount = DB.activeDiscount && DB.activeDiscount.categories.includes(catId);
+  const discountPercent = hasCategoryDiscount ? DB.activeDiscount.percent : 0;
 
-  gridEl.innerHTML = cat.items.map(item => `
-    <div class="srv-card" onclick="bookService('${item.name}', ${item.price})">
+  // Add discount banner if active for this category
+  let bannerHtml = '';
+  if (hasCategoryDiscount) {
+    bannerHtml = `
+      <div class="explore-discount-banner">
+        <div class="discount-icon">🎉</div>
+        <div class="discount-info">
+          <strong>${DB.activeDiscount.purpose} Special!</strong>
+          <span>${discountPercent}% OFF on all ${cat.name} services</span>
+        </div>
+        <div class="discount-countdown" id="explore-discount-timer">
+          ⏰ ${formatTimeRemaining(DB.activeDiscount.endDate)}
+        </div>
+      </div>
+    `;
+  }
+
+  gridEl.innerHTML = bannerHtml + cat.items.map(item => {
+    const discountedPrice = getDiscountedPrice(item.price, catId);
+    
+    return `
+    <div class="srv-card ${discountedPrice ? 'has-discount' : ''}" onclick="bookService('${item.name}', ${item.price}, '${catId}')">
       <div class="name">
         <span class="dot"></span>
         <span>${item.name}</span>
       </div>
-      <span class="price">Rs.${fmt(item.price)}+</span>
+      ${discountedPrice ? `
+        <div class="price-container">
+          <span class="price-original">Rs.${fmt(item.price)}</span>
+          <span class="price-new">Rs.${fmt(discountedPrice)}</span>
+        </div>
+      ` : `<span class="price">Rs.${fmt(item.price)}+</span>`}
     </div>
-  `).join('');
+  `}).join('');
+  
+  // Start timer update if discount is active
+  if (hasCategoryDiscount) {
+    startExploreDiscountTimer();
+  }
 }
 
-function bookService(name, price) {
-  const msg = `Hi! I'd like to book an appointment for *${name}* (Rs.${fmt(price)}) at ${DB.settings.brand}.
+let exploreDiscountTimerInterval;
+function startExploreDiscountTimer() {
+  clearInterval(exploreDiscountTimerInterval);
+  exploreDiscountTimerInterval = setInterval(() => {
+    if (!DB.activeDiscount) {
+      clearInterval(exploreDiscountTimerInterval);
+      if (DB.services.length > 0) {
+        renderServiceGrid(DB.services[0].id);
+      }
+      return;
+    }
+    
+    const timerEl = document.getElementById('explore-discount-timer');
+    if (!timerEl) {
+      clearInterval(exploreDiscountTimerInterval);
+      return;
+    }
+    
+    timerEl.textContent = `⏰ ${formatTimeRemaining(DB.activeDiscount.endDate)}`;
+  }, 1000);
+}
 
-When are you available?`;
+function bookService(name, price, catId) {
+  const discountedPrice = getDiscountedPrice(price, catId);
+  const displayPrice = discountedPrice || price;
+  const discountNote = discountedPrice ? ` (${DB.activeDiscount.percent}% ${DB.activeDiscount.purpose} discount applied!)` : '';
+  
+  const msg = `Hi! I'd like to book an appointment for *${name}* at ${DB.settings.brand}.
+
+Original Price: Rs.${fmt(price)}
+${discountedPrice ? `Special Price: Rs.${fmt(discountedPrice)} ✨` : ''}${discountNote}
+
+When are you available?
+
+🌐 Visit our website: ${getWebsiteLink()}`;
 
   openWhatsApp(DB.settings.whatsapp, msg);
 }
@@ -1670,6 +1799,206 @@ function sendMonthlyAlerts() {
   }
   
   banner.classList.add('hidden');
+}
+
+/* ══════════════════════════════════════════════════════
+   DISCOUNT MANAGEMENT
+══════════════════════════════════════════════════════ */
+function loadDiscountManager() {
+  const container = document.getElementById('discount-manager');
+  if (!container) return;
+
+  const hasActiveDiscount = DB.activeDiscount && new Date(DB.activeDiscount.endDate) > new Date();
+  
+  if (hasActiveDiscount) {
+    container.innerHTML = `
+      <div class="discount-active">
+        <div class="discount-header">
+          <h4>🎉 Active Discount: ${DB.activeDiscount.purpose}</h4>
+          <span class="discount-percent">${DB.activeDiscount.percent}% OFF</span>
+        </div>
+        <div class="discount-categories">
+          <strong>Categories:</strong> ${DB.activeDiscount.categories.map(c => getCategoryName(c)).join(', ')}
+        </div>
+        <div class="discount-timer" id="discount-timer">
+          Ends in: <span id="discount-countdown">${formatTimeRemaining(DB.activeDiscount.endDate)}</span>
+        </div>
+        <div class="discount-actions">
+          <button class="btn-danger" onclick="endDiscountEarly()">End Discount Now</button>
+        </div>
+      </div>
+    `;
+    startDiscountTimer();
+  } else {
+    DB.activeDiscount = null;
+    saveDB();
+    container.innerHTML = `
+      <div class="discount-form">
+        <h4>🏷️ Create Special Discount</h4>
+        <p class="section-desc">Create a limited-time discount for specific service categories</p>
+        
+        <div class="form-group">
+          <label>Purpose / Name (e.g., Eid, Diwali)</label>
+          <input type="text" id="discount-purpose" placeholder="Eid Special">
+        </div>
+        
+        <div class="form-group">
+          <label>Discount Percentage</label>
+          <input type="number" id="discount-percent" min="1" max="50" value="10">
+        </div>
+        
+        <div class="form-group">
+          <label>End Date & Time</label>
+          <input type="datetime-local" id="discount-end-date">
+        </div>
+        
+        <div class="form-group">
+          <label>Select Categories</label>
+          <div class="category-checkboxes">
+            ${DB.services.map(cat => `
+              <label class="checkbox-label">
+                <input type="checkbox" value="${cat.id}" class="discount-category">
+                ${cat.name}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        
+        <button class="btn-primary" onclick="createDiscount()">Create Discount</button>
+      </div>
+    `;
+    
+    // Set default end date to 7 days from now
+    const defaultEnd = new Date();
+    defaultEnd.setDate(defaultEnd.getDate() + 7);
+    const endInput = document.getElementById('discount-end-date');
+    if (endInput) {
+      endInput.value = defaultEnd.toISOString().slice(0, 16);
+    }
+  }
+}
+
+function getCategoryName(catId) {
+  const cat = DB.services.find(c => c.id === catId);
+  return cat ? cat.name : catId;
+}
+
+function formatTimeRemaining(endDate) {
+  const now = new Date();
+  const end = new Date(endDate);
+  const diff = end - now;
+  
+  if (diff <= 0) return 'Expired!';
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+let discountTimerInterval;
+function startDiscountTimer() {
+  clearInterval(discountTimerInterval);
+  discountTimerInterval = setInterval(() => {
+    if (!DB.activeDiscount) {
+      clearInterval(discountTimerInterval);
+      loadDiscountManager();
+      return;
+    }
+    
+    const countdown = document.getElementById('discount-countdown');
+    if (!countdown) {
+      clearInterval(discountTimerInterval);
+      return;
+    }
+    
+    const remaining = formatTimeRemaining(DB.activeDiscount.endDate);
+    countdown.textContent = remaining;
+    
+    if (remaining === 'Expired!') {
+      clearInterval(discountTimerInterval);
+      DB.activeDiscount = null;
+      saveDB();
+      loadDiscountManager();
+      loadServicesAdmin();
+      loadExploreScreen();
+      showToast('Discount has ended', 'warning');
+    }
+  }, 1000);
+}
+
+function createDiscount() {
+  const purpose = document.getElementById('discount-purpose').value.trim();
+  const percent = parseInt(document.getElementById('discount-percent').value) || 0;
+  const endDate = document.getElementById('discount-end-date').value;
+  const categories = Array.from(document.querySelectorAll('.discount-category:checked')).map(cb => cb.value);
+  
+  if (!purpose) { showToast('Enter a purpose/name', 'error'); return; }
+  if (percent < 1 || percent > 50) { showToast('Discount must be 1-50%', 'error'); return; }
+  if (!endDate) { showToast('Select an end date', 'error'); return; }
+  if (categories.length === 0) { showToast('Select at least one category', 'error'); return; }
+  if (DB.activeDiscount) { showToast('A discount is already active. End it first.', 'error'); return; }
+  
+  DB.activeDiscount = {
+    purpose,
+    percent,
+    endDate,
+    categories,
+    createdAt: new Date().toISOString()
+  };
+  
+  saveDB();
+  loadDiscountManager();
+  loadServicesAdmin();
+  
+  // Show broadcast alert
+  showDiscountBroadcastAlert(purpose, percent, categories, endDate);
+}
+
+function showDiscountBroadcastAlert(purpose, percent, categories, endDate) {
+  const categoryNames = categories.map(c => getCategoryName(c)).join(', ');
+  
+  if (confirm(`📢 Broadcast this discount to all clients?\n\n${purpose}: ${percent}% off on ${categoryNames}\nEnds: ${new Date(endDate).toLocaleString()}\n\nClick OK to broadcast, Cancel to skip.`)) {
+    // Add broadcast messages to MTS
+    const clients = Object.entries(DB.clients);
+    clients.forEach(([phone, c]) => {
+      c.pendingDiscountBroadcast = {
+        purpose,
+        percent,
+        categories,
+        endDate
+      };
+    });
+    saveDB();
+    loadMTSList();
+    showToast(`Discount broadcast added to MTS!`, 'success');
+  }
+  
+  showToast(`${purpose} discount created! ✦`, 'success');
+}
+
+function endDiscountEarly() {
+  if (!confirm('Are you sure you want to end the discount early?')) return;
+  
+  DB.activeDiscount = null;
+  saveDB();
+  clearInterval(discountTimerInterval);
+  loadDiscountManager();
+  loadServicesAdmin();
+  loadExploreScreen();
+  showToast('Discount ended', 'warning');
+}
+
+function getDiscountedPrice(originalPrice, categoryId) {
+  if (!DB.activeDiscount || !DB.activeDiscount.categories.includes(categoryId)) {
+    return null;
+  }
+  return Math.round(originalPrice * (1 - DB.activeDiscount.percent / 100));
 }
 
 /* ══════════════════════════════════════════════════════
