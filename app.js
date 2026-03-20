@@ -97,24 +97,144 @@ function getDefaultData() {
 /* ══════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════ */
-let DB = loadDB();
+let DB = null; // Will be loaded asynchronously
 let pinBuffer = '';
 let currentScreen = 's-welcome';
+let firebaseUnsubscribe = null; // For real-time sync
 
 /* ══════════════════════════════════════════════════════
-   DATABASE FUNCTIONS
+   DATABASE FUNCTIONS - Firebase + localStorage fallback
 ══════════════════════════════════════════════════════ */
-function loadDB() {
+
+// Load from localStorage (fallback)
+function loadFromLocalStorage() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) {}
+  } catch (e) {
+    console.error('localStorage load error:', e);
+  }
   return getDefaultData();
 }
 
-function saveDB() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+// Save to localStorage (always save locally as backup)
+function saveToLocalStorage(data) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error('localStorage save error:', e);
+  }
 }
+
+// Check if Firebase is configured
+function isFirebaseConfigured() {
+  return typeof firebase !== 'undefined' && 
+         firebase.app && 
+         firebase.app().options && 
+         firebase.app().options.apiKey !== "YOUR_API_KEY_HERE";
+}
+
+// Initialize database
+async function initDB() {
+  // Always load from localStorage first for immediate display
+  DB = loadFromLocalStorage();
+  
+  // Then try Firebase if configured
+  if (isFirebaseConfigured()) {
+    try {
+      const doc = await firebase.firestore().collection('abeenaz').doc('parlor_data').get();
+      if (doc.exists) {
+        DB = doc.data();
+        saveToLocalStorage(DB); // Update local backup
+        console.log('✅ Data loaded from Firebase');
+        
+        // Setup real-time sync
+        setupRealtimeSync();
+      } else {
+        // No Firebase data yet, upload current localStorage data
+        await firebase.firestore().collection('abeenaz').doc('parlor_data').set(DB);
+        console.log('✅ Data uploaded to Firebase');
+      }
+    } catch (e) {
+      console.error('Firebase load error:', e);
+      console.log('Using localStorage data');
+    }
+  } else {
+    console.log('Firebase not configured, using localStorage only');
+  }
+  
+  // Initialize UI
+  initializeApp();
+}
+
+// Setup real-time sync
+function setupRealtimeSync() {
+  if (!isFirebaseConfigured()) return;
+  
+  // Unsubscribe from previous listener
+  if (firebaseUnsubscribe) {
+    firebaseUnsubscribe();
+  }
+  
+  firebaseUnsubscribe = firebase.firestore()
+    .collection('abeenaz')
+    .doc('parlor_data')
+    .onSnapshot((doc) => {
+      if (doc.exists) {
+        const newData = doc.data();
+        
+        // Only update if data actually changed (check timestamp or hash)
+        const newHash = JSON.stringify(newData);
+        const currentHash = JSON.stringify(DB);
+        
+        if (newHash !== currentHash) {
+          DB = newData;
+          saveToLocalStorage(DB);
+          console.log('🔄 Real-time sync: Data updated from cloud');
+          
+          // Refresh current view
+          if (currentScreen === 's-admin') {
+            loadAdminPanel();
+          } else if (currentScreen === 's-explore') {
+            loadExploreScreen();
+          }
+        }
+      }
+    }, (error) => {
+      console.error('Real-time sync error:', error);
+    });
+}
+
+// Save database (to both Firebase and localStorage)
+async function saveDB() {
+  // Always save to localStorage immediately
+  saveToLocalStorage(DB);
+  
+  // Then sync to Firebase if configured
+  if (isFirebaseConfigured()) {
+    try {
+      await firebase.firestore().collection('abeenaz').doc('parlor_data').set(DB);
+      console.log('✅ Saved to Firebase');
+    } catch (e) {
+      console.error('Firebase save error:', e);
+      showToast('Cloud sync failed, saved locally', 'warning');
+    }
+  }
+}
+
+// Initialize app after DB is loaded
+function initializeApp() {
+  // Load initial screen
+  loadExploreScreen();
+}
+
+// Load database (sync version for compatibility)
+function loadDB() {
+  return loadFromLocalStorage();
+}
+
+// Start app
+initDB();
 
 /* ══════════════════════════════════════════════════════
    UTILITIES
@@ -766,6 +886,8 @@ document.getElementById('bill-amount')?.addEventListener('input', updateBillPrev
 function updateBillPreview() {
   const phone = document.getElementById('bill-phone').value.replace(/\D/g, '');
   const amount = parseFloat(document.getElementById('bill-amount').value) || 0;
+  const serviceSelect = document.getElementById('bill-service');
+  const serviceId = serviceSelect.value;
 
   if (!phone || !DB.clients[phone] || amount <= 0) {
     document.getElementById('bill-discount-display').value = '0%';
@@ -782,6 +904,20 @@ function updateBillPreview() {
   let discount = perk ? perk.discount : 0;
   if (c.referralDiscount) discount = Math.max(discount, 5);
   
+  // Check for active special discount
+  let specialDiscount = 0;
+  let specialDiscountName = '';
+  let hasSpecialDiscount = false;
+  if (DB.activeDiscount && serviceId) {
+    const category = DB.services.find(cat => cat.items.some(item => item.id === serviceId));
+    if (category && DB.activeDiscount.categories.includes(category.id)) {
+      specialDiscount = DB.activeDiscount.percent;
+      specialDiscountName = DB.activeDiscount.purpose;
+      hasSpecialDiscount = true;
+      discount = Math.max(discount, specialDiscount);
+    }
+  }
+  
   const finalAmount = Math.round(amount * (1 - discount / 100));
   const points = calcPoints(amount);
 
@@ -793,8 +929,10 @@ function updateBillPreview() {
   preview.innerHTML = `
     <h4>Bill Summary</h4>
     <div class="bill-row"><span>Original Amount</span><span>Rs.${fmt(amount)}</span></div>
-    <div class="bill-row"><span>Discount</span><span class="text-gold">${discount}% off</span></div>
-    ${c.referralDiscount ? '<div class="bill-row"><span>Referral Applied</span><span class="text-gold">✓</span></div>' : ''}
+    ${perk ? `<div class="bill-row"><span>Perk Discount (${perk.name})</span><span class="text-gold">${perk.discount}% off</span></div>` : ''}
+    ${c.referralDiscount ? '<div class="bill-row"><span>Referral Discount</span><span class="text-gold">5% off</span></div>' : ''}
+    ${hasSpecialDiscount ? `<div class="bill-row"><span>🎉 ${specialDiscountName} Special</span><span class="text-gold">${specialDiscount}% off</span></div>` : ''}
+    <div class="bill-row"><span>Total Discount</span><span class="text-gold">${discount}% off</span></div>
     <div class="bill-row total"><span>Final Amount</span><span>Rs.${fmt(finalAmount)}</span></div>
     <div class="bill-row"><span>Points Earned</span><span class="text-gold">+${points} pts</span></div>
   `;
@@ -870,6 +1008,18 @@ function generateBill() {
   const newMonthlySpend = c.monthlySpend[thisMonth];
   const nextPerkNeeded = nextPerk ? nextPerk.monthlyMin - newMonthlySpend : 0;
 
+  // Build discount breakdown
+  let discountBreakdown = '';
+  if (perk) {
+    discountBreakdown += `• Perk (${perk.name}): ${perk.discount}% off\n`;
+  }
+  if (usedReferral) {
+    discountBreakdown += `• Referral: 5% off\n`;
+  }
+  if (specialDiscountName) {
+    discountBreakdown += `• ${specialDiscountName} Special: ${specialDiscount}% off 🎉\n`;
+  }
+
   let msg = `🧾 *${DB.settings.brand} Invoice*
 
 ━━━━━━━━━━━━━━━━━
@@ -879,8 +1029,20 @@ function generateBill() {
 
 📦 *Service:* ${serviceName}
 💰 *Original:* Rs.${fmt(amount)}
-🏷️ *Discount:* ${discount}% off${specialDiscountName ? ` (${specialDiscountName} Special!)` : ''}
-💵 *Total Paid:* Rs.${fmt(finalAmount)}
+`;
+
+  // Show discount breakdown if any
+  if (discount > 0) {
+    msg += `
+🏷️ *Discount Breakdown:*
+${discountBreakdown}━━━━━━━━━━━━━━━━━
+💵 *Total Discount:* ${discount}% off
+💸 *You Saved:* Rs.${fmt(amount - finalAmount)}
+`;
+  }
+
+  msg += `
+✅ *Total Paid:* Rs.${fmt(finalAmount)}
 
 ━━━━━━━━━━━━━━━━━
 ✨ *Your Stats:*
@@ -905,6 +1067,18 @@ function generateBill() {
 `;
   } else {
     msg += `💎 You're at our top tier!
+`;
+  }
+
+  // Show running occasion discount banner if active
+  if (DB.activeDiscount && new Date(DB.activeDiscount.endDate) > new Date()) {
+    const categoryNames = DB.activeDiscount.categories.map(catId => getCategoryName(catId)).join(', ');
+    const timeLeft = formatTimeRemaining(DB.activeDiscount.endDate);
+    msg += `
+🎉 *${DB.activeDiscount.purpose} Special Running!*
+${DB.activeDiscount.percent}% OFF on ${categoryNames}
+⏰ Ends in: ${timeLeft}
+
 `;
   }
 
@@ -1245,18 +1419,33 @@ function loadLoyaltyAdmin() {
     `).join('');
   }
 
-  // Perks tiers
+  // Perks tiers - EDITABLE
   const tiers = document.getElementById('perks-tiers');
   if (tiers) {
     tiers.innerHTML = DB.perks.map((p, i) => `
-      <div class="perk-tier">
+      <div class="perk-tier-editable">
         <div class="perk-tier-header">
-          <span class="perk-tier-name">${p.name}</span>
-          <span class="perk-tier-amount">Rs.${fmt(p.monthlyMin)}/mo</span>
+          <input type="text" class="perk-name-input" value="${p.name}" placeholder="Tier Name" onchange="updatePerk(${i}, 'name', this.value)">
+          <input type="number" class="perk-amount-input" value="${p.monthlyMin}" placeholder="Min Spend" onchange="updatePerk(${i}, 'monthlyMin', parseInt(this.value))">
+          <span class="perk-tier-label">Rs./mo</span>
         </div>
-        <div class="perk-tier-benefits">${p.benefits} (${p.discount}% off)</div>
+        <div class="perk-tier-row">
+          <input type="number" class="perk-discount-input" value="${p.discount}" placeholder="%" min="0" max="100" onchange="updatePerk(${i}, 'discount', parseInt(this.value))">
+          <span class="perk-tier-label">% off</span>
+        </div>
+        <div class="perk-tier-row">
+          <input type="text" class="perk-benefits-input" value="${p.benefits}" placeholder="Benefits description" onchange="updatePerk(${i}, 'benefits', this.value)">
+        </div>
       </div>
     `).join('');
+  }
+}
+
+function updatePerk(index, field, value) {
+  if (DB.perks[index]) {
+    DB.perks[index][field] = value;
+    saveDB();
+    showToast('Perk updated ✦', 'success');
   }
 }
 
@@ -1414,12 +1603,12 @@ function loadExploreScreen() {
     renderServiceGrid(DB.services[0].id);
   }
 
-  // Perks breakdown
+  // Perks breakdown - show as T1, T2, T3, T4
   const perksEl = document.getElementById('perks-breakdown');
-  perksEl.innerHTML = DB.perks.map(p => `
+  perksEl.innerHTML = DB.perks.map((p, idx) => `
     <div class="perk-tier-card">
       <div>
-        <div class="tier-name">${p.name}</div>
+        <div class="tier-name">T${idx + 1}</div>
         <div class="tier-req">Spend Rs.${fmt(p.monthlyMin)}/month</div>
       </div>
       <div class="tier-benefit">${p.benefits}</div>
@@ -1653,6 +1842,38 @@ function getPendingMessages() {
     });
   }
 
+  // Discount broadcast messages (highest priority)
+  clients.forEach(([phone, c]) => {
+    if (c.pendingDiscountBroadcast && !c.discountBroadcastSent) {
+      const discount = c.pendingDiscountBroadcast;
+      const categoryNames = discount.categories.map(catId => getCategoryName(catId)).join(', ');
+      messages.push({
+        id: `discount_${phone}`,
+        type: 'discount',
+        phone,
+        name: c.name,
+        title: '🎉 Discount Broadcast',
+        desc: `${discount.purpose}: ${discount.percent}% off on ${categoryNames}`,
+        priority: 'high'
+      });
+    }
+  });
+
+  // Regular broadcast messages
+  clients.forEach(([phone, c]) => {
+    if (c.pendingBroadcast && !c.broadcastSent) {
+      messages.push({
+        id: `broadcast_${phone}`,
+        type: 'broadcast',
+        phone,
+        name: c.name,
+        title: '📢 Broadcast Message',
+        desc: c.pendingBroadcast.substring(0, 50) + (c.pendingBroadcast.length > 50 ? '...' : ''),
+        priority: 'medium'
+      });
+    }
+  });
+
   return messages;
 }
 
@@ -1703,6 +1924,14 @@ function sendMTSMessage(msgId, phone, type) {
   } else if (type === 'maintenance') {
     sendMaintenanceAlert(phone);
     c.maintenanceAlertSent = true;
+  } else if (type === 'discount') {
+    sendDiscountBroadcastMessage(phone);
+    c.discountBroadcastSent = true;
+    c.pendingDiscountBroadcast = null;
+  } else if (type === 'broadcast') {
+    sendCustomBroadcastMessage(phone);
+    c.broadcastSent = true;
+    c.pendingBroadcast = null;
   }
 
   saveDB();
@@ -1712,6 +1941,65 @@ function sendMTSMessage(msgId, phone, type) {
     loadMTSList();
     showToast('Message sent! ✦', 'success');
   }, 500);
+}
+
+/* ══════════════════════════════════════════════════════
+   DISCOUNT BROADCAST MESSAGE
+══════════════════════════════════════════════════════ */
+function sendDiscountBroadcastMessage(phone) {
+  const c = DB.clients[phone];
+  if (!c || !DB.activeDiscount) return;
+
+  const discount = DB.activeDiscount;
+  const categoryNames = discount.categories.map(catId => getCategoryName(catId)).join(', ');
+  const endDateFormatted = new Date(discount.endDate).toLocaleDateString('en-PK', { 
+    day: 'numeric', 
+    month: 'short', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const msg = `🎉 *${discount.purpose} Special at ${DB.settings.brand}!*
+
+Hi ${c.name}! 💛
+
+We're excited to announce our *${discount.purpose}* discount!
+
+✨ *${discount.percent}% OFF* on all *${categoryNames}* services!
+
+⏰ *Valid until:* ${endDateFormatted}
+
+Don't miss this amazing offer! Book your appointment now.
+
+📍 ${DB.settings.address}
+📞 +92 ${DB.settings.whatsapp}
+🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}
+
+See you soon! 💅✨`;
+
+  openWhatsApp(phone, msg);
+}
+
+function sendCustomBroadcastMessage(phone) {
+  const c = DB.clients[phone];
+  if (!c || !c.pendingBroadcast) return;
+
+  const msg = `📢 *${DB.settings.brand} Announcement*
+
+Hi ${c.name}! 💛
+
+${c.pendingBroadcast}
+
+📍 ${DB.settings.address}
+📞 +92 ${DB.settings.whatsapp}
+🕐 ${DB.settings.hours}
+🌐 Visit our website: ${getWebsiteLink()}
+
+Thank you for being part of our family! ✨`;
+
+  openWhatsApp(phone, msg);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1731,19 +2019,23 @@ function sendBroadcast() {
     return;
   }
 
+  // Show confirmation popup first
+  if (!confirm(`📢 Broadcast this message to all ${clients.length} clients?\n\nMessage: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"\n\nClick OK to add to MTS queue, Cancel to abort.`)) {
+    return;
+  }
+
   // Add all broadcast messages to MTS instead of auto-sending
   let count = 0;
   clients.forEach(([phone, c]) => {
-    if (!c.pendingBroadcast) {
-      c.pendingBroadcast = message;
-      count++;
-    }
+    c.pendingBroadcast = message;
+    c.broadcastSent = false; // Reset so it shows in MTS
+    count++;
   });
 
   saveDB();
   loadMTSList();
   document.getElementById('broadcast-message').value = '';
-  showToast(`Added ${count} broadcast messages to MTS queue`, 'success');
+  showToast(`${count} broadcast messages added to MTS!`, 'success');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1962,8 +2254,9 @@ function createDiscount() {
 
 function showDiscountBroadcastAlert(purpose, percent, categories, endDate) {
   const categoryNames = categories.map(c => getCategoryName(c)).join(', ');
+  const clientCount = Object.keys(DB.clients).length;
   
-  if (confirm(`📢 Broadcast this discount to all clients?\n\n${purpose}: ${percent}% off on ${categoryNames}\nEnds: ${new Date(endDate).toLocaleString()}\n\nClick OK to broadcast, Cancel to skip.`)) {
+  if (confirm(`📢 Broadcast this discount to all ${clientCount} clients?\n\n${purpose}: ${percent}% off on ${categoryNames}\nEnds: ${new Date(endDate).toLocaleString()}\n\nClick OK to add to MTS queue, Cancel to skip.`)) {
     // Add broadcast messages to MTS
     const clients = Object.entries(DB.clients);
     clients.forEach(([phone, c]) => {
@@ -1973,10 +2266,11 @@ function showDiscountBroadcastAlert(purpose, percent, categories, endDate) {
         categories,
         endDate
       };
+      c.discountBroadcastSent = false; // IMPORTANT: Reset so it shows in MTS
     });
     saveDB();
     loadMTSList();
-    showToast(`Discount broadcast added to MTS!`, 'success');
+    showToast(`${clientCount} discount broadcasts added to MTS!`, 'success');
   }
   
   showToast(`${purpose} discount created! ✦`, 'success');
