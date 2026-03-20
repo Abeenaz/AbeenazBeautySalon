@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abeenaz Luxury Parlor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Custom Cursor -->
+  <div id="cursor"></div>
+  <div id="cursor-follower"></div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Background Canvas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- ==================== SCREENS ==================== -->
+
+  <!-- Welcome Screen -->
+  <div id="s-welcome" class="screen active">
+    <div class="welcome-container">
+      <div class="welcome-header">
+        <h1 class="brand-name" id="site-brand-name">Abeenaz</h1>
+        <p class="brand-tagline" id="site-brand-tagline">where luxury meets you</p>
+      </div>
+
+      <div class="welcome-card">
+        <div class="phone-input-section">
+          <div class="phone-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <div class="phone-label">
+            <span class="label-title">Enter Phone Number</span>
+            <span class="label-hint">Admin access only</span>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <input type="tel" id="inp-phone" placeholder="Enter 10-digit number" maxlength="10" autocomplete="off">
+          <button id="btn-phone-submit" class="btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"></path>
+            </svg>
+          </button>
+        </div>
+
+        <button id="btn-explore-guest" class="btn-ghost">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Explore as Guest
+        </button>
+      </div>
+
+      <p class="footer-info">
+        EST. <span id="site-est-year">2023</span> · <span id="site-address">Karachi, Pakistan</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Admin PIN Screen -->
+  <div id="s-pin" class="screen">
+    <div class="pin-container">
+      <div class="pin-card">
+        <div class="pin-avatar">🔑</div>
+        <h2 class="pin-title">Admin Access</h2>
+        <p class="pin-desc">Enter your PIN to continue</p>
+
+        <div class="pin-dots" id="pin-row">
+          <div class="pin-dot" id="pd0"></div>
+          <div class="pin-dot" id="pd1"></div>
+          <div class="pin-dot" id="pd2"></div>
+          <div class="pin-dot" id="pd3"></div>
+        </div>
+
+        <div class="numpad">
+          <button class="num-btn" onclick="numPress(1)">1</button>
+          <button class="num-btn" onclick="numPress(2)">2</button>
+          <button class="num-btn" onclick="numPress(3)">3</button>
+          <button class="num-btn" onclick="numPress(4)">4</button>
+          <button class="num-btn" onclick="numPress(5)">5</button>
+          <button class="num-btn" onclick="numPress(6)">6</button>
+          <button class="num-btn" onclick="numPress(7)">7</button>
+          <button class="num-btn" onclick="numPress(8)">8</button>
+          <button class="num-btn" onclick="numPress(9)">9</button>
+          <button class="num-btn empty"></button>
+          <button class="num-btn" onclick="numPress(0)">0</button>
+          <button class="num-btn del" onclick="delPin()">⌫</button>
+        </div>
+
+        <button class="btn-ghost mt-4" onclick="goScreen('s-welcome')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"></path>
+          </svg>
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="s-admin" class="screen">
+    <div class="admin-container">
+      <!-- Admin Header -->
+      <header class="admin-header">
+        <div class="admin-info">
+          <h1>Admin Panel</h1>
+          <p id="admin-phone-display">+92 319 264 1891</p>
+        </div>
+        <div class="admin-actions">
+          <button class="btn-icon" onclick="openSettings()" title="Settings">⚙️</button>
+          <button class="btn-icon" onclick="logout()" title="Logout">🚪</button>
+        </div>
+      </header>
+
+      <!-- Stats Bar -->
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-value" id="stat-total-clients">0</span>
+          <span class="stat-label">Clients</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="stat-this-month">Rs.0</span>
+          <span class="stat-label">This Month</span>
+        </div>
+        <div class="stat-item highlight">
+          <span class="stat-value" id="stat-alerts">0</span>
+          <span class="stat-label">Alerts</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="stat-referrals">0</span>
+          <span class="stat-label">Referrals</span>
+        </div>
+      </div>
+
+      <!-- Alert Banner -->
+      <div id="admin-alert-banner" class="alert-banner hidden">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-content">
+          <strong id="alert-title">Monthly Alerts</strong>
+          <span id="alert-message">Send maintenance reminders to customers</span>
+        </div>
+        <div class="alert-actions">
+          <button class="btn-primary btn-sm" onclick="sendMonthlyAlerts()">Send All Alerts</button>
+          <button class="btn-ghost btn-sm" onclick="dismissAlertBanner()">✕ Dismiss</button>
+        </div>
+      </div>
+
+      <!-- Admin Tabs -->
+      <div class="admin-tabs">
+        <button class="a-tab active" data-tab="clients" onclick="switchTab('clients')">
+          <span>👥</span> Clients
+        </button>
+        <button class="a-tab" data-tab="billing" onclick="switchTab('billing')">
+          <span>🧾</span> Billing
+        </button>
+        <button class="a-tab" data-tab="mts" onclick="switchTab('mts')">
+          <span>📨</span> MTS
+        </button>
+        <button class="a-tab" data-tab="alerts-tab" onclick="switchTab('alerts-tab')">
+          <span>🔔</span> Alerts
+        </button>
+        <button class="a-tab" data-tab="services" onclick="switchTab('services')">
+          <span>💅</span> Services
+        </button>
+        <button class="a-tab" data-tab="loyalty" onclick="switchTab('loyalty')">
+          <span>🎁</span> Loyalty
+        </button>
+        <button class="a-tab" data-tab="customize" onclick="switchTab('customize')">
+          <span>🎨</span> Customize
+        </button>
+      </div>
+
+      <!-- Tab Contents -->
+      <div class="admin-content">
+        <!-- Clients Tab -->
+        <div id="tab-clients" class="a-tab-content active">
+          <div class="section-header">
+            <h3>Clients</h3>
+            <button class="btn-primary btn-sm" onclick="openAddClientModal()">+ Add Client</button>
+          </div>
+
+          <div class="search-bar">
+            <input type="text" id="client-search" placeholder="Search clients..." oninput="filterClients()">
+          </div>
+
+          <div id="clients-list" class="clients-list"></div>
+        </div>
+
+        <!-- Billing Tab -->
+        <div id="tab-billing" class="a-tab-content">
+          <div class="billing-form">
+            <h3>Generate Bill</h3>
+
+            <div class="form-group">
+              <label>Client Phone</label>
+              <input type="tel" id="bill-phone" placeholder="10-digit number" maxlength="10" oninput="lookupClientForBill()">
+              <div id="bill-client-info" class="client-preview hidden"></div>
+            </div>
+
+            <div class="form-group">
+              <label>Select Service</label>
+              <select id="bill-service" onchange="updateServicePrice()">
+                <option value="">-- Select Service --</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Amount (Rs.)</label>
+              <input type="number" id="bill-amount" placeholder="Enter amount">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Discount Applied</label>
+                <input type="text" id="bill-discount-display" readonly value="0%">
+              </div>
+              <div class="form-group">
+                <label>Final Amount</label>
+                <input type="text" id="bill-final-amount" readonly value="Rs. 0">
+              </div>
+            </div>
+
+            <div id="bill-preview" class="bill-preview hidden">
+              <h4>Bill Summary</h4>
+              <div id="bill-summary"></div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn-primary" onclick="generateBill()">Generate & Send Bill</button>
+            </div>
+          </div>
+
+          <!-- Recent Bills -->
+          <div class="recent-section">
+            <h4>Recent Bills</h4>
+            <div id="recent-bills" class="recent-list"></div>
+          </div>
+        </div>
+
+        <!-- MTS Tab (Messages To Send) -->
+        <div id="tab-mts" class="a-tab-content">
+          <div class="mts-section">
+            <div class="section-header">
+              <h3>📨 Messages To Send <span id="mts-count" class="badge">0</span></h3>
+            </div>
+            <p class="section-desc">Pending messages that need to be sent. Once sent, they are automatically removed.</p>
+            
+            <div id="mts-list" class="mts-list"></div>
+
+            <hr class="divider">
+
+            <!-- Broadcast Section -->
+            <div class="broadcast-section">
+              <h4>📢 Broadcast Message</h4>
+              <p class="section-desc">Send a custom message to ALL clients at once</p>
+              
+              <div class="form-group">
+                <label>Your Message</label>
+                <textarea id="broadcast-message" rows="4" placeholder="Type your announcement here..."></textarea>
+              </div>
+              <button class="btn-primary" onclick="sendBroadcast()">
+                📢 Broadcast to All Clients
+              </button>
+            </div>
+
+            <hr class="divider">
+
+            <!-- Message Previews -->
+            <div class="previews-section">
+              <h4>📋 Message Previews</h4>
+              <p class="section-desc">These are auto-generated based on your current settings (loyalty shop, perks, hours, etc.)</p>
+              
+              <div class="preview-tabs">
+                <button class="preview-tab active" onclick="showPreview('welcome')">Welcome</button>
+                <button class="preview-tab" onclick="showPreview('monthly')">Monthly</button>
+                <button class="preview-tab" onclick="showPreview('maintenance')">Maintenance</button>
+              </div>
+              
+              <div id="preview-welcome" class="preview-content active"></div>
+              <div id="preview-monthly" class="preview-content"></div>
+              <div id="preview-maintenance" class="preview-content"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts Tab -->
+        <div id="tab-alerts-tab" class="a-tab-content">
+          <div class="alerts-section">
+            <div class="alert-card">
+              <h4>📅 1st of Month - Benefits Reminder</h4>
+              <p>Send all customers their monthly summary: name, loyalty points, active perks, lifetime spend, monthly maintenance, referral status, and loyalty shop info.</p>
+              <button class="btn-primary" onclick="sendFirstOfMonthAlerts()">View in MTS</button>
+            </div>
+
+            <div class="alert-card warning">
+              <h4>⚠️ 20th of Month - Maintenance Alert</h4>
+              <p>Alert customers who haven't completed their monthly maintenance spending.</p>
+              <button class="btn-warning" onclick="sendTwentiethAlerts()">View in MTS</button>
+            </div>
+
+            <h4 class="mt-4">Customers Needing Attention</h4>
+            <div id="attention-list" class="attention-list"></div>
+          </div>
+        </div>
+
+        <!-- Services Tab -->
+        <div id="tab-services" class="a-tab-content">
+          <div class="section-header">
+            <h3>Services & Pricing</h3>
+            <button class="btn-primary btn-sm" onclick="openAddServiceModal()">+ Add Service</button>
+          </div>
+
+          <div id="services-list" class="services-list"></div>
+        </div>
+
+        <!-- Loyalty Tab -->
+        <div id="tab-loyalty" class="a-tab-content">
+          <div class="loyalty-section">
+            <div class="loyalty-header">
+              <h3>Loyalty Shop</h3>
+              <button class="btn-primary btn-sm" onclick="openAddRewardModal()">+ Add Reward</button>
+            </div>
+
+            <div class="form-group">
+              <label>Points Rate</label>
+              <div class="inline-form">
+                <input type="number" id="points-rate" value="1" min="1" style="width:80px">
+                <span>points per Rs.100 spent</span>
+                <button class="btn-primary btn-sm" onclick="savePointsRate()">Save</button>
+              </div>
+            </div>
+
+            <div id="loyalty-shop-list" class="loyalty-shop-list"></div>
+
+            <hr class="divider">
+
+            <h4>Perks Tiers</h4>
+            <div id="perks-tiers" class="perks-tiers"></div>
+          </div>
+        </div>
+
+        <!-- Customize Tab -->
+        <div id="tab-customize" class="a-tab-content">
+          <div class="customize-section">
+            <h3>Parlor Details</h3>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Brand Name</label>
+                <input type="text" id="cust-brand" placeholder="Abeenaz">
+              </div>
+              <div class="form-group">
+                <label>Tagline</label>
+                <input type="text" id="cust-tagline" placeholder="where luxury meets you">
+              </div>
+              <div class="form-group">
+                <label>Address</label>
+                <input type="text" id="cust-address" placeholder="Karachi, Pakistan">
+              </div>
+              <div class="form-group">
+                <label>WhatsApp Number</label>
+                <input type="tel" id="cust-whatsapp" placeholder="3192641891" maxlength="10">
+              </div>
+              <div class="form-group">
+                <label>Hours</label>
+                <input type="text" id="cust-hours" placeholder="Mon–Sat, 10am–8pm">
+              </div>
+              <div class="form-group">
+                <label>Est. Year</label>
+                <input type="text" id="cust-est" placeholder="2023">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>About Text</label>
+              <textarea id="cust-about" rows="3" placeholder="About your parlor..."></textarea>
+            </div>
+
+            <button class="btn-primary" onclick="saveCustomization()">Save Changes</button>
+
+            <hr class="divider">
+
+            <h4>Change Admin PIN</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>New PIN</label>
+                <input type="password" id="new-pin" maxlength="4" placeholder="4-digit PIN">
+              </div>
+              <div class="form-group">
+                <label>Confirm PIN</label>
+                <input type="password" id="confirm-pin" maxlength="4" placeholder="Confirm PIN">
+              </div>
+            </div>
+            <button class="btn-primary" onclick="changeAdminPin()">Update PIN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Explore Screen (Guest) -->
+  <div id="s-explore" class="screen">
+    <div class="explore-container">
+      <header class="explore-header">
+        <h1 id="explore-brand">Abeenaz</h1>
+        <p id="explore-tagline">where luxury meets you</p>
+      </header>
+
+      <!-- Hero Section -->
+      <section class="explore-hero">
+        <div class="hero-content">
+          <h2 id="hero-title">Where Every Woman<br><em>Deserves to Shine</em></h2>
+          <p id="hero-sub">Premium beauty services crafted with care, artistry and the finest products.</p>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="explore-stats">
+        <div class="stat-box">
+          <span class="big" id="stat-clients">500+</span>
+          <span class="small">Happy Clients</span>
+        </div>
+        <div class="stat-box">
+          <span class="big" id="stat-exp">5+</span>
+          <span class="small">Years Experience</span>
+        </div>
+        <div class="stat-box">
+          <span class="big" id="stat-services-count">30+</span>
+          <span class="small">Services</span>
+        </div>
+      </section>
+
+      <!-- Services Section -->
+      <section class="explore-section" id="services-section">
+        <h3>Our Services</h3>
+        <p class="section-desc">Click any service to book via WhatsApp</p>
+
+        <div class="services-tabs" id="services-tabs"></div>
+        <div class="services-grid" id="services-grid"></div>
+      </section>
+
+      <!-- Perks Section -->
+      <section class="explore-section">
+        <h3>✨ Perks & Benefits</h3>
+        <p class="section-desc">Earn rewards with every visit!</p>
+
+        <div class="perks-explanation">
+          <div class="perk-item">
+            <div class="perk-icon">🌟</div>
+            <div class="perk-content">
+              <h4>How It Works</h4>
+              <p>Spend a minimum amount each month to unlock exclusive perks for the next month!</p>
+            </div>
+          </div>
+
+          <div id="perks-breakdown" class="perks-breakdown"></div>
+        </div>
+      </section>
+
+      <!-- Loyalty Shop Section -->
+      <section class="explore-section">
+        <h3>🎁 Loyalty Shop</h3>
+        <p class="section-desc">Redeem your points for amazing rewards!</p>
+
+        <div class="loyalty-explanation">
+          <div class="loyalty-info">
+            <h4>What is Loyalty Shop?</h4>
+            <p>Every time you visit Abeenaz, you earn loyalty points! For every Rs.100 spent, you earn points that can be redeemed for free services and discounts.</p>
+            <p class="points-rate" id="explore-points-rate">Current rate: 1 point per Rs.100 spent</p>
+          </div>
+        </div>
+
+        <div class="loyalty-grid" id="explore-loyalty-grid"></div>
+      </section>
+
+      <!-- About Section -->
+      <section class="explore-section">
+        <h3>About Us</h3>
+        <div class="about-content" id="about-content"></div>
+      </section>
+
+      <!-- Contact Section -->
+      <section class="explore-section contact-section">
+        <h3>Visit Us</h3>
+        <div class="contact-info">
+          <p><strong>📍 Address:</strong> <span id="contact-address">Karachi, Pakistan</span></p>
+          <p><strong>🕐 Hours:</strong> <span id="contact-hours">Mon–Sat, 10am–8pm</span></p>
+          <a href="#" id="contact-whatsapp-btn" class="btn-whatsapp">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Chat on WhatsApp
+          </a>
+        </div>
+      </section>
+
+      <footer class="explore-footer">
+        <p>© 2024 <span id="footer-brand">Abeenaz</span>. All rights reserved.</p>
+        <button class="btn-ghost btn-sm" onclick="goScreen('s-welcome')">Admin Login</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Client Detail Modal -->
+  <div id="client-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-client-name">Client Name</h3>
+        <button class="modal-close" onclick="closeModal('client-modal')">×</button>
+      </div>
+      <div id="modal-client-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Add Client Modal -->
+  <div id="add-client-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Client</h3>
+        <button class="modal-close" onclick="closeModal('add-client-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Phone Number *</label>
+          <input type="tel" id="add-client-phone" maxlength="10" placeholder="10-digit number">
+        </div>
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="add-client-name" placeholder="Client name">
+        </div>
+        <div class="form-group">
+          <label>Referred By (Phone)</label>
+          <input type="tel" id="add-client-referrer" maxlength="10" placeholder="Referrer's phone">
+          <div id="referrer-info" class="client-preview hidden"></div>
+        </div>
+        <div class="form-group">
+          <label>Birthday (Optional)</label>
+          <input type="date" id="add-client-birthday">
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="closeModal('add-client-modal')">Cancel</button>
+          <button class="btn-primary" onclick="addClient()">Add Client</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Service Modal -->
+  <div id="add-service-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Service</h3>
+        <button class="modal-close" onclick="closeModal('add-service-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="add-service-category"></select>
+        </div>
+        <div class="form-group">
+          <label>New Category (or select above)</label>
+          <input type="text" id="add-service-new-category" placeholder="e.g., Hair, Skin, Nails">
+        </div>
+        <div class="form-group">
+          <label>Service Name *</label>
+          <input type="text" id="add-service-name" placeholder="Service name">
+        </div>
+        <div class="form-group">
+          <label>Price (Rs.) *</label>
+          <input type="number" id="add-service-price" placeholder="Price">
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="closeModal('add-service-modal')">Cancel</button>
+          <button class="btn-primary" onclick="addService()">Add Service</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Reward Modal -->
+  <div id="add-reward-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Loyalty Reward</h3>
+        <button class="modal-close" onclick="closeModal('add-reward-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Reward Name *</label>
+          <input type="text" id="add-reward-name" placeholder="e.g., Free Manicure">
+        </div>
+        <div class="form-group">
+          <label>Points Required *</label>
+          <input type="number" id="add-reward-points" placeholder="e.g., 200">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="add-reward-desc" placeholder="Brief description">
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="closeModal('add-reward-modal')">Cancel</button>
+          <button class="btn-primary" onclick="addReward()">Add Reward</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button class="modal-close" onclick="closeModal('settings-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <h4>Data Management</h4>
+        <div class="settings-actions">
+          <button class="btn-ghost" onclick="exportData()">📥 Export Data</button>
+          <button class="btn-ghost" onclick="document.getElementById('import-file').click()">📤 Import Data</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+        </div>
+        <hr class="divider">
+        <h4 class="text-danger">Danger Zone</h4>
+        <button class="btn-danger" onclick="resetAllData()">🗑️ Reset All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
