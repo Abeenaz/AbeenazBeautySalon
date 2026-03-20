@@ -17,12 +17,12 @@
 
 const FIREBASE_CONFIG = {
   // REPLACE THESE WITH YOUR FIREBASE CONFIG:
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyA8IIs0J8QPnjZdWgdLzA5UjHxB-hZksHo",
+  authDomain: "abeenaz-abbe8.firebaseapp.com",
+  projectId: "abeenaz-abbe8",
+  storageBucket: "abeenaz-abbe8.firebasestorage.app",
+  messagingSenderId: "578762968049",
+  appId: "1:578762968049:web:3c72daeeb2ffaff17cd250"
 };
 
 // Initialize Firebase
